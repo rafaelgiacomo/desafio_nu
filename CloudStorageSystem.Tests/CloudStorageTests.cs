@@ -206,4 +206,43 @@ public class CloudStorageTests
         Assert.Equal(650, mergedUser.StorageAvailable);
 
     }
+
+    [Fact]
+    public void BackupUserFiles_ShouldReturnNumberOfBackUpFiles()
+    {
+        //Arrange
+        var storage = new CloudStorage();
+        storage.AddUser(1, 600);
+
+        storage.AddFile(1, "/dir/file1.txt", 5);
+        storage.AddFile(1, "/dir/file2", 20);
+        storage.AddFile(1, "/dir/deeper/file2.mov", 9);
+
+        //Act
+        var result = storage.BackupUserFiles(1);
+
+        //Assert
+        Assert.Equal(3, result);
+    }
+
+    [Fact]
+    public void RestoreUserFiles_ShouldReturnNumberOfRestoredFiles()
+    {
+        //Arrange
+        var storage = new CloudStorage();
+        storage.AddUser(1, 600);
+
+        storage.AddFile(1, "/dir/file1.txt", 5);
+        storage.AddFile(1, "/dir/file2", 20);
+        storage.AddFile(1, "/dir/deeper/file2.mov", 9);
+
+        storage.BackupUserFiles(1);
+
+        //Act
+        var result = storage.RestoreUserFiles(1);
+
+        //Assert
+        Assert.Equal(3, result);
+    }
+
 }

@@ -1,5 +1,3 @@
-
-
 namespace CloudStorage;
 
 public class CloudStorage
@@ -67,6 +65,18 @@ public class CloudStorage
         return user!.GetNLargest(prefix, n);
     }
 
+    public List<string> GetUserFiles(int userId)
+    {
+        if (!_users.ContainsKey(userId))
+            return new List<string>();
+
+        var user = _users.GetValueOrDefault(userId);
+
+        return user!.Files
+            .Select(x => $"{x.Key}({x.Value})")
+            .ToList();
+    }
+
     public CloudUser? MergeUsers(int userId1, int userId2)
     {
         var user1 = _users.GetValueOrDefault(userId1);
@@ -82,11 +92,30 @@ public class CloudStorage
 
         return newUser;
     }
+
+    public int? BackupUserFiles(int userId)
+    {
+        if (!_users.ContainsKey(userId))
+            return null;
+
+        var user = _users.GetValueOrDefault(userId);
+        
+        return user!.BackupFiles();
+    }
+
+    public int? RestoreUserFiles(int userId)
+    {
+        if (!_users.ContainsKey(userId))
+            return null;
+
+        var user = _users.GetValueOrDefault(userId);
+        
+        return user!.RestoreFiles();
+    }
 }
 
 public class CloudUser
 {
-
     public int Id { get; private set; }
     public int Capacity { get; private set; }
 
@@ -94,7 +123,10 @@ public class CloudUser
     public int StorageAvailable => Capacity - StorageUsed;
 
     private Dictionary<string, int> _files = new();
+    private Dictionary<string, int> _backupFiles = new();
+
     public IReadOnlyDictionary<string, int> Files => _files;
+    public IReadOnlyDictionary<string, int> FilesBackup => _files;
 
     public CloudUser(int id, int capacity)
     {
@@ -120,7 +152,7 @@ public class CloudUser
             return null;
 
         var fileSize = _files.GetValueOrDefault(name);
-        
+
         _files.Remove(name);
         StorageUsed = StorageUsed - fileSize;
 
@@ -186,5 +218,23 @@ public class CloudUser
         return query
             .Select(x => $"{x.Key}({x.Value})")
             .ToList();
+    }
+
+    public int BackupFiles()
+    {
+        _backupFiles = new Dictionary<string, int>(_files);
+
+        return _backupFiles.Count;
+    }
+
+    public int RestoreFiles()
+    {
+        if (_backupFiles == null) return 0;
+
+        _files = new Dictionary<string, int>(_backupFiles);
+
+        StorageUsed = _files.Sum(x => x.Value);
+
+        return _files.Count;
     }
 }
