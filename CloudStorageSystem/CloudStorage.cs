@@ -67,37 +67,34 @@ public class CloudStorage
         return user!.GetNLargest(prefix, n);
     }
 
-    public int? MergeUsers(int userId1, int userId2)
+    public CloudUser? MergeUsers(int userId1, int userId2)
     {
         var user1 = _users.GetValueOrDefault(userId1);
         var user2 = _users.GetValueOrDefault(userId2);
 
-        if(user1 == null || user2 == null)
+        if (user1 == null || user2 == null)
             return null;
 
         int newUserId = _users.Count + 1;
-        int newUserCapacity = user1.Capacity + user2.Capacity;
-        
-        var newUser = new CloudUser(newUserId, newUserCapacity)
-        {
-            Files = user1.MergeFiles(user2.Files, newUserId.ToString())
-        };
+        var newUser = user1.MergeUser(user2, newUserId);
 
         _users.Add(newUserId, newUser);
 
-        return newUser.Id;
+        return newUser;
     }
 }
 
 public class CloudUser
 {
-    public int Id { get; set; }
-    public int Capacity { get; set; }
-    public Dictionary<string, int> Files { get; set; } = new Dictionary<string, int>();
 
-    public int StorageUsed => Files.Sum(x => x.Value);
-    public int StorageAvailable => Capacity - Files.Sum(x => x.Value);
+    public int Id { get; private set; }
+    public int Capacity { get; private set; }
 
+    public int StorageUsed { get; private set; } = 0;
+    public int StorageAvailable => Capacity - StorageUsed;
+
+    private Dictionary<string, int> _files = new();
+    public IReadOnlyDictionary<string, int> Files => _files;
 
     public CloudUser(int id, int capacity)
     {
@@ -107,32 +104,51 @@ public class CloudUser
 
     public bool AddFile(string name, int size)
     {
-        if (Files.ContainsKey(name) || size > StorageAvailable)
+        if (_files.ContainsKey(name) || size > StorageAvailable)
             return false;
 
-        Files.Add(name, size);
+        _files.Add(name, size);
+
+        StorageUsed = StorageUsed + size;
 
         return true;
     }
 
     public int? DeleteFile(string name)
     {
-        if (!Files.ContainsKey(name))
+        if (!_files.ContainsKey(name))
             return null;
 
-        var fileSize = Files.GetValueOrDefault(name);
-        Files.Remove(name);
+        var fileSize = _files.GetValueOrDefault(name);
+        
+        _files.Remove(name);
+        StorageUsed = StorageUsed - fileSize;
 
         return fileSize;
     }
 
+    public CloudUser MergeUser(CloudUser user, int newUserId)
+    {
+        var mergedUser = new CloudUser(newUserId, Capacity + user.Capacity);
+
+        foreach (var file in _files.Concat(user.Files))
+        {
+            if (!mergedUser.Files.ContainsKey(file.Key))
+                mergedUser.AddFile(file.Key, file.Value);
+            else
+                mergedUser.AddFile($"({user.Id}) {file.Key}", file.Value);
+        }
+
+        return mergedUser;
+    }
+
     public Dictionary<string, int> MergeFiles(Dictionary<string, int> mergingFiles, string? diffText = "1")
     {
-        var mergedFiles = Files.ToDictionary();
+        var mergedFiles = _files.ToDictionary();
 
-        foreach(var file in mergingFiles)
+        foreach (var file in mergingFiles)
         {
-            if(!mergedFiles.ContainsKey(file.Key))
+            if (!mergedFiles.ContainsKey(file.Key))
                 mergedFiles.Add(file.Key, file.Value);
             else
                 mergedFiles.Add($"({diffText}) {file.Key}", file.Value);
@@ -143,7 +159,7 @@ public class CloudUser
 
     public int? GetFileSize(string name)
     {
-        return Files.ContainsKey(name) ? Files.GetValueOrDefault(name) : null;
+        return _files.ContainsKey(name) ? _files.GetValueOrDefault(name) : null;
     }
 
     public List<string> GetNLargest(params string[] prefix)
@@ -158,15 +174,16 @@ public class CloudUser
 
     private List<string> GetNLargest(string[] prefix, int? n = null)
     {
-        var query = Files
-            .Where(x => prefix.Any(y => x.Key.StartsWith(y)));
+        var query = _files
+            .Where(x => prefix.Any(y => x.Key.StartsWith(y)))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key)
+            .AsQueryable();
 
         if (n != null)
             query = query.Take(n.Value);
 
         return query
-            .OrderByDescending(x => x.Value)
-            .ThenBy(x => x.Key)
             .Select(x => $"{x.Key}({x.Value})")
             .ToList();
     }

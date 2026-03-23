@@ -153,7 +153,7 @@ public class CloudStorageTests
 
         storage.AddFile(1, "/dir/file1.txt", 5);
         storage.AddFile(1, "/dir/file2", 20);
-        storage.AddFile(1, "/dir/deeper/file2.mov", 9);
+        storage.AddFile(1, "/deeper/file2.mov", 9);
 
         //Act
         List<string> result = storage.GetNLargest(1, "/dir", 2);
@@ -181,5 +181,29 @@ public class CloudStorageTests
 
         //Assert
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public void MergeUsers_ShouldReturnMergedUserId_WhenUsersMergedSuccessfully()
+    {
+        //Arrange
+        var storage = new CloudStorage();
+        storage.AddUser(1, 600);
+        storage.AddUser(2, 400);
+
+        storage.AddFile(1, "/dir/file1.txt", 150);
+        storage.AddFile(2, "/dir/file2", 200);
+
+        //Act
+        var mergedUser = storage.MergeUsers(1, 2);
+
+        //Assert
+        Assert.NotNull(mergedUser);
+        Assert.Equal(3, mergedUser.Id);
+        Assert.Equal(2, mergedUser.Files.Count);
+        Assert.Equal(1000, mergedUser.Capacity);
+        Assert.Equal(350, mergedUser.StorageUsed);
+        Assert.Equal(650, mergedUser.StorageAvailable);
+
     }
 }
